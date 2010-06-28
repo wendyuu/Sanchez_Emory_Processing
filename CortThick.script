@@ -1,0 +1,130 @@
+#!/usr/local/bin/tcsh -f
+ 
+# VARIABLES SEPCIFIC TO DATASET
+set ORIG_DATA_DIR = /primate/SanchezEmory/BrainDevYerkes
+set SUBJ_DIR_PREFIX = "R??13"
+set AGE_SURFIX = "{3months,6months}"
+echo $AGE_SURFIX
+
+set curpath = $cwd
+ 
+set qcPicDir = $curpath/pics
+ 
+#recompute montage pictures?
+set recomputeMontage = 1
+ 
+if (! -e $qcPicDir) mkdir $qcPicDir
+ 
+# LOCATION VARIABLES for the atlas etc
+set atlasLoc = /tools/atlas/BrainROIAtlas/rhesusMonkeyT1_RAI
+set atlasFile = $atlasLoc/template.gipl.gz
+set atlasT2File = $atlasLoc/templateT2.gipl.gz
+set atlasParcFile = $atlasLoc/template_parc_vent.gipl.gz
+set atlasLabelHeaderFile = $atlasLoc/labelList.txt
+set atlasSubCortFile = $atlasLoc/SubCortical.gipl.gz
+set atlasSubCortHeaderFile = $atlasLoc/subcorticalList.txt
+set brainmask = $atlasLoc/Mask_WM_GM_CSF.gipl.gz
+set atlasEMSFile = $atlasLoc/template_hardseg.gipl.gz
+set parfile = $atlasLoc/areg_par.txt 
+
+# LOCATION VARIABLES for Mesh
+set grayAtlasSurface = $atlasLoc/gray_surface.meta
+
+# SYSTEM VARIABLES
+# usually DO NOT EDIT THESE
+
+set nregCmd      = /tools/rview_linux64/nreg
+set aregCmd      = /tools/rview_linux64/areg
+set rregCmd      = /tools/rview_linux64/rreg
+set transformCmd = /tools/rview_linux64/transformation
+set intensityRescaleCmd = IntensityRescaler
+set imgConvCmd   = /usr/bin/convert
+if (-e /usr/local/bin/convert) set imgConvCmd = /usr/local/bin/convert
+set convCmd      = convertITKformats
+set reorientCmd  = imconvert3
+set warpCmd      = /tools/bin_linux/WarpTool
+set ImageMathCmd = /tools/bin_linux/ImageMath
+set MeshTransformCmd = /tools/bin_linux64/MeshTransform
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# 1) cmpute the cortical thickness
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
+
+set imagesizeString = `ImageStat $atlasFile -info | grep Dims`
+set imagesize       = "$imagesizeString[2] $imagesizeString[3] $imagesizeString[4]"
+
+set allcases = $ORIG_DATA_DIR/${SUBJ_DIR_PREFIX}/${AGE_SURFIX}/sMRI/Tissue_Seg_ABC/*_labels_ABC.nrrd
+set numcases = $#allcases
+set randnum  = `randperm 1 $numcases`
+foreach index ($randnum)          
+    set EMSfile  = $allcases[$index] 
+
+    set caseDir  =  $EMSfile:h:h
+    set labelFile = $EMSfile:t:r
+    echo $labelFile
+    set targetDir = $caseDir/cortThick 
+    set WarpParcDir = $caseDir/WarpParc
+    if (! -e $targetDir) mkdir $targetDir
+    if (! -e $WarpParcDir) mkdir $WarpParcDir
+
+    
+    set targetCort = $targetDir/${labelFile}-DistanceMapOnWhite.mha
+    set ParcelFile = $WarpParcDir/${labelFile}_AffWarpParc.gipl.gz
+    if (! -e $targetCort && ! -e $targetCort.gz) then
+	echo Cortical thickness cmputation ${caseDir}
+	echo CortThick -seg $EMSfile 1 2 $targetDir -par $ParcelFile -Sdm -GMMaps -Wm 
+	CortThick -seg $EMSfile 1 2 $targetDir -par $ParcelFile -Sdm -GMMaps -Wm 
+	#mv $targetDir/_par.csv $targetDir/${caseNumber}_par.csv
+	#mv $targetDir/_par_array.csv $targetDir/${caseNumber}_par_array.csv
+	cp $atlasLabelHeaderFile $targetDir
+	$ImageMathCmd $EMSfile -outfile $targetDir/$labelFile-WM.gipl.gz -extractLabel 1
+	MeshCortThick -i $targetDir/$labelFile-WM.gipl.gz $targetDir/$labelFile-DistanceMapOnWhiteAvg.mha
+	gzip -f $targetDir/*mha $targetDir/*vtk
+    endif
+end
+
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# gather data
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
+echo Gather thickness data for stats
+
+set targetDir = $curpath/CortThickStat
+if (! -e $targetDir) mkdir $targetDir
+cp $ORIG_DATA_DIR/${SUBJ_DIR_PREFIX}/${AGE_PREFIX}/sMRI/cortThick/*_par_array.csv $targetDir
+
+echo Done
+
+
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# QC images
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+
+set sidePar = " --visMode DistanceMap --distMapMin 0 --distMapMax 13 --br 255 --bg 255 --bb 255 --posx 630 --posy 50 --posz 205 --focx 100 --focy 125 --focz 76 --upx -0.18 --upy 0.32 --upz 0.93 --zoom 110 --cameraSwitch --quit"
+set topPar = "--visMode DistanceMap --distMapMin 0 --distMapMax 13 --br 255 --bg 255 --bb 255 --posx 100 --posy 320 --posz 590 --focx 100 --focy 125 --focz 76 --upx -0.02 --upy -0.93 --upz 0.36 --zoom 110 --cameraSwitch --quit "
+
+
+foreach case ($ORIG_DATA_DIR/${SUBJ_DIR_PREFIX}/${AGE_PREFIX}/sMRI/cortThick/*-WM.gipl.meta)
+    if (! -e $case:r:r_sideThick.bmp ) then
+	echo doing KWMeshVisu --mesh $case --image $case:r:r_sideThick.bmp --scalar $case:s/-WM.gipl.meta/-DistanceMapOnWhiteAvg_attr.txt/ $sidePar
+ 
+	KWMeshVisu --mesh $case --image $case:r:r_sideThick.bmp --scalar $case:s/-WM.gipl.meta/-DistanceMapOnWhiteAvg_attr.txt/ $sidePar
+    endif
+    if (! -e $case:r:r_topThick.bmp ) then
+	KWMeshVisu --mesh $case --image $case:r:r_topThick.bmp --scalar $case:s/-WM.gipl.meta/-DistanceMapOnWhiteAvg_attr.txt/ $topPar
+    endif
+end

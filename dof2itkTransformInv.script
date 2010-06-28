@@ -1,0 +1,43 @@
+#!/bin/bash
+#if no arguments given, print how to use script and exit
+if [ $# -ne 1 ] && [ $# -ne 2 ]
+then
+	echo 'Usage: $0 inputFile [outputFile]'
+	exit
+fi
+inputFile=$1
+if [ $# == 2 ]
+then
+  matFile=${2%.txt}.mat
+else
+  matFile=${inputFile%.dof}.mat
+fi
+dof2mat $inputFile -invert > $matFile
+itkFile=${matFile%.mat}.txt
+echo '#Insight Transform File V1.0' > $itkFile
+echo '#Transform 0' >> $itkFile
+echo 'Transform: AffineTransform_double_3_3' >> $itkFile
+var=""
+pos=0
+for i in `grep -v 'itkMatrix 4 x 4' $matFile`
+do
+  pos=`echo "a=$pos ; b=1 ; a+b "| bc`
+  #var="$var $i"
+  size[$pos]=$i
+done
+for((i=0;i<12;i++))
+do
+  if [ `echo $i%4|bc` -ne 0 ]
+  then
+    var="$var ${size[$i]}"
+  fi
+done
+for((i=4;i<16;i=$i+4))
+do
+  var="$var ${size[$i]}"
+done
+
+echo "Parameters:" $var >> $itkFile
+echo "FixedParameters: 0 0 0" >>$itkFile
+echo "" >> $itkFile
+rm $matFile

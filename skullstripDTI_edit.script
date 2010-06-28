@@ -1,0 +1,97 @@
+#!/bin/tcsh
+
+set dataDir = /primate/SanchezEmory/BrainDevYerkes
+
+set cases = `ls $dataDir/R??13*/*/DTI/R??13*_30dir_10DWI*upsampled.nrrd`
+
+#DEBUG
+set dtiestim = /tools/bin_linux64/dtiestim
+
+set numcases = $#cases
+set randnum  = `randperm 1 $numcases`
+foreach index ($randnum)          
+
+    set case = $cases[$index]
+    set caseID = $case:h:h:h:t
+    set age = $case:h:h:t
+    echo doing $caseID $age
+
+    set caseDir = $case:h
+    set ABCDir = $caseDir/ABC
+    set B0image = $ABCDir/B0_${caseID}_${age}_upsampled.nrrd
+    set IDWIimage = $ABCDir/IDWI_${caseID}_${age}_upsampled.nrrd
+    set IDWIsmoothimage = $ABCDir/IDWI_${caseID}_${age}_upsampled_smooth.nrrd
+    set tensorimage = $ABCDir/tensor_${caseID}_${age}_upsampled.nrrd
+    set faimage = $caseDir/FA_${caseID}_${age}.nrrd
+    set mdimage = $caseDir/MD_${caseID}_${age}.nrrd
+    set adimage = $caseDir/AD_${caseID}_${age}.nrrd
+    set l2image = $caseDir/L2_${caseID}_${age}.nrrd
+    set l3image = $caseDir/L3_${caseID}_${age}.nrrd
+    set rdimage = $caseDir/RD_${caseID}_${age}.nrrd
+    set brainmask = $ABCDir/brainmask_${caseID}_${age}_upsampled.nrrd
+
+    if (! -e $ABCDir) mkdir $ABCDir
+
+    if (! -e $B0image) then
+	echo generating IDWI and B0, $tensorimage from $case
+	$dtiestim $case $tensorimage --B0 $B0image --idwi $IDWIimage -m wls -v
+    endif
+ 
+    if (! -e $IDWIsmoothimage) then
+	echo smoothing IDWI
+	ImageMath $IDWIimage -outfile $IDWIsmoothimage -smooth -gauss -size 0.5
+    endif
+
+    if (! -e $brainmask) then
+	echo doing brainmask $brainmask
+	set ABCXML = $ABCDir/ABC_param.xml
+	echo '<?xml version="1.0"?>' >! $ABCXML
+	echo "<\!DOCTYPE SEGMENTATION-PARAMETERS>" >> $ABCXML
+	echo '<SEGMENTATION-PARAMETERS>' >> $ABCXML
+	echo '<SUFFIX>ABC</SUFFIX>' >> $ABCXML
+	echo '<ATLAS-DIRECTORY>/tools/atlas/BrainROIAtlas/rhesusMonkeyT1_RAI/ABC_stripped</ATLAS-DIRECTORY>' >> $ABCXML
+	echo '<ATLAS-ORIENTATION>RAI</ATLAS-ORIENTATION>' >> $ABCXML
+	echo '<OUTPUT-DIRECTORY>'$ABCDir'</OUTPUT-DIRECTORY>' >> $ABCXML
+	echo '<OUTPUT-FORMAT>Nrrd</OUTPUT-FORMAT>' >> $ABCXML
+	echo '<IMAGE>' >> $ABCXML
+	echo '  <FILE>'$B0image'</FILE>' >> $ABCXML
+	echo '  <ORIENTATION>RAI</ORIENTATION>' >> $ABCXML
+	echo '	</IMAGE>' >> $ABCXML
+	echo '<IMAGE>' >> $ABCXML
+	echo '  <FILE>'$IDWIsmoothimage'</FILE>' >> $ABCXML 
+	echo '  <ORIENTATION>RAI</ORIENTATION>' >> $ABCXML 
+	echo '</IMAGE>' >> $ABCXML 
+	echo '<FILTER-ITERATIONS>10</FILTER-ITERATIONS>' >> $ABCXML
+	echo '<FILTER-TIME-STEP>0.01</FILTER-TIME-STEP>' >> $ABCXML
+	echo '<FILTER-METHOD>Curvature flow</FILTER-METHOD>' >> $ABCXML
+	echo '<MAX-BIAS-DEGREE>4</MAX-BIAS-DEGREE>' >> $ABCXML
+	echo '<PRIOR>1.2</PRIOR>' >> $ABCXML
+	echo '<PRIOR>1</PRIOR>' >> $ABCXML
+	echo '<PRIOR>0.7</PRIOR>' >> $ABCXML
+	echo '<PRIOR>1</PRIOR>' >> $ABCXML
+	echo '<DO-ATLAS-WARP>0</DO-ATLAS-WARP>' >> $ABCXML
+	echo '<ATLAS-WARP-FLUID-ITERATIONS>1</ATLAS-WARP-FLUID-ITERATIONS>' >> $ABCXML
+	echo '<ATLAS-WARP-GRID-X>5</ATLAS-WARP-GRID-X>' >> $ABCXML
+	echo '<ATLAS-WARP-GRID-Y>5</ATLAS-WARP-GRID-Y>' >> $ABCXML
+	echo '<ATLAS-WARP-GRID-Z>5</ATLAS-WARP-GRID-Z>' >> $ABCXML
+	echo '<ATLAS-LINEAR-MAP-TYPE>affine</ATLAS-LINEAR-MAP-TYPE>' >> $ABCXML
+	echo '<IMAGE-LINEAR-MAP-TYPE>id</IMAGE-LINEAR-MAP-TYPE>' >> $ABCXML
+	echo '</SEGMENTATION-PARAMETERS>' >> $ABCXML
+
+	ABC $ABCXML 
+
+	SegPostProcess $ABCDir/*_upsampled_labels_ABC.nrrd -skullstripping $B0image -mask $brainmask
+     endif
+
+     if (! -e $faimage) then
+	echo tensor estimation dtiestim $case $tensorimage -m wls -v
+	dtiestim $case $tensorimage -M  $brainmask -m wls -v
+	dtiprocess $tensorimage -f $faimage -m $mdimage --lambda1-output $adimage --lambda2-output $l2image --lambda3-output $l3image
+	ImageMath $l2image -avg $l3image -outfile $rdimage
+ 
+	#cleanup
+	rm $ABCDir/output.mha $ABCDir/*posterior* $ABCDir/*corrected* 
+
+    endif
+
+end

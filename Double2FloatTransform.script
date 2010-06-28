@@ -1,0 +1,15 @@
+#!/bin/bash
+#if no arguments given, print how to use script and exit
+if [ $# -ne 1 ] && [ $# -ne 2 ]
+then
+	echo 'Usage: $0 inputFile [outputFile]'
+	exit
+fi
+inputFile=$1
+outputFile=$2
+if [ $# == 2 ]
+then
+  cp $inputFile $outputFile
+  inputFile=$outputFile
+fi
+sed -i 's/Transform: AffineTransform_double_3_3/Transform: AffineTransform_float_3_3/' $inputFile
