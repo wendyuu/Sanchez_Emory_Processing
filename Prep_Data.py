@@ -80,9 +80,9 @@ for line in prefixlist:
    print suffix
    if(options.nodicom == False):
       # for all the zipnames that contain prefix and suffix
-      # format of the zip file would be **R??13_??months*
+      # format of the zip file would be **R??13_[age]*
       dicom_loc = os.path.join(ORIG_DIR,'orig')
-      for file in fnmatch.filter(os.listdir(dicom_loc),'*'+prefix+'_'+suffix+'*'):
+      for file in fnmatch.filter(os.listdir(dicom_loc),'*'+prefix+'_'+suffix+'*zip'):
          zipname = os.path.join(dicom_loc,file.replace('.zip',''))
          # unzip not done
          print 'Now Processing Subject ' + prefix + suffix
