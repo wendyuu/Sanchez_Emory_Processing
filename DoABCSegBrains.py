@@ -6,6 +6,7 @@
 # Yundi Shi
 
 import os
+import sys
 import fnmatch
 import glob
 from optparse import OptionParser
@@ -70,6 +71,15 @@ TunuClampCmd = Template(os.path.join(SlicerLoc,'bin/unu')+' 3op clamp $min  $inf
 ABCCmd = '/tools/bin_linux64/ABC' #ABC
 
 
+
+###############################################################
+##########################PIPELINE#############################
+########1. N4 CORRECTION
+########2. RIGID REGISTRATION (T1 to Atlas, T2 to T1)
+########3. ABC
+########4. SKULL STRIPPING
+########5. INTENSITY CALIBRATION
+
 # loop through the folders to calculate tensor
 for prefix in prefixlist:
     prefix = prefix[0:5]
@@ -80,7 +90,9 @@ for prefix in prefixlist:
     else:
        pass
     #For each subject
+    
     if os.path.exists(SUBJ_DIR):
+       print prefix
        sMRI_DIR = os.path.join(SUBJ_DIR,'sMRI')
        TISSUE_SEG_DIR = os.path.join(sMRI_DIR,'Tissue_Seg_ABC')
        if(os.path.exists(TISSUE_SEG_DIR)==False):
@@ -133,7 +145,7 @@ for prefix in prefixlist:
        T2RregT1  = T2_N4.replace('.nrrd','_RregT1.nrrd')
        TransRreg = T2RregT1.replace('.nrrd','_trans.txt')
        
-       BFitCmd = BRAINSFitCmd.substitute(tar = T1_N4, sou = T2_N4, trans = TransRreg) + ' --useRigid --interpolationMode BSpline --outputVolume ' + T2RregT1
+       BFitCmd = BRAINSFitCmd.substitute(tar = T1_N4, sou = T2_N4, trans = TransRreg) + ' --transformType Rigid --useCenterOfHeadAlign --interpolationMode BSpline ----outputVolume ' + T2RregT1
        log = log + BFitCmd + '\n\n'
        if (os.path.exists(TransRreg) == False):
           print BFitCmd
@@ -206,7 +218,7 @@ for prefix in prefixlist:
              # 3-2 run ABC
              cmd = ABCCmd + ' ' + ABC_file
              log = log + cmd + '\n\n'
-             if (fnmatch.filter(os.listdir(TISSUE_SEG_DIR),'*'+SUFFIX+'*.nrrd*') == []):
+             if (fnmatch.filter(os.listdir(TISSUE_SEG_DIR),'*'+SUFFIX+'.nrrd*') == []):
                 os.system(cmd)
           
              #Use the label file to generate the brain mask
