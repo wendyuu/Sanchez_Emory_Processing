@@ -14,6 +14,7 @@ from optparse import OptionParser
 # VARIABLES SPECIFIC TO DATASET
 ORIG_DATA_DIR = '/primate/SanchezEmory/BrainDevYerkes/'
 ORIG_PROCESSING_DIR = os.path.join(ORIG_DATA_DIR,'Sanchez_Emory_Processing')
+ORIG_STATS_DIR = os.path.join(ORIG_DATA_DIR,'STATS')
 # the txt file that stores all the prefix names
 # prefix of the file names
 # either read it from a file or as input
@@ -67,12 +68,17 @@ TintensityRescaleCmd = Template('/tools/bin_linux64/IntensityRescaler')
 TimgConvCmd = Template('/usr/bin/convert')
 TconvCmd = Template('/tools/bin_linux64/convertITKformats $infile $outfile')
 TreorientCmd = Template('/tools/bin_linux64/imconvert3  $infile $outfile ')
-TImageMathCmd = Template('/home/vachet/Neurolib/NeuroLib_linux64/bin/ImageMath $infile -outfile $outfile')
+TImageMathCmd = Template('/tools/bin_linux64/ImageMath $infile -outfile $outfile')
 TbiascorrectCmd = Template(os.path.join(SlicerLoc,'lib/Slicer3/Plugins/N4ITKBiasFieldCorrection --inputimage $infile --outputimage $outfile'))
 TunugzipCmd = Template(os.path.join(SlicerLoc,'bin/unu')+' save -f nrrd -e gzip -i $infile -o $outfile')
 TunuClampCmd = Template(os.path.join(SlicerLoc,'bin/unu')+' 3op clamp $min  $infile $max -o $outfile')
 TChangeOrigin = Template(os.path.join(ORIG_PROCESSING_DIR,'ChangeOrigin.py $file $file'))
+ImageStatCmd = ('/tools/bin_linux64/ImageStat')
 ABCCmd = '/tools/bin_linux64/ABC' #ABC
+
+#Volume stats files
+ABCVOL = os.path.join(ORIG_STATS_DIR,age+'_ABC_vol.txt')
+VOLSTATS = 'CASE\tBACKGROUND\tWM\tGM\tCSF'
 
 
 
@@ -81,6 +87,7 @@ ABCCmd = '/tools/bin_linux64/ABC' #ABC
 ############################2. RIGID REGISTRATION (T1->ATLAS; T2->T1)#############################
 ############################3. ABC################################################################
 ############################4. INTENSITY RESCALING################################################
+############################5. CALCULATE THE VOLUMES OF EMS SEGMENTED AREAS
 
 # loop through the folders to calculate tensor
 for prefix in prefixlist:
@@ -115,8 +122,8 @@ for prefix in prefixlist:
           if(os.path.exists(sMRI_nrrd)):
              sMRI_nrrd = eval(sMRI+'_nrrd')
              unugzipCmd = TunugzipCmd.substitute(infile=sMRI_nrrd,outfile=sMRI_nrrd)
-             print unugzipCmd
-             os.system(unugzipCmd)
+             #print unugzipCmd
+             #os.system(unugzipCmd)
        #######################################
        # 1. Bias field correction using N4
        ######################################
@@ -128,11 +135,11 @@ for prefix in prefixlist:
              if (os.path.exists(eval(sMRI+'_nrrd').replace('.nrrd','_N4corrected.nrrd'))==False):
                 print biascorrectCmd
                 os.system(biascorrectCmd)
-             #change the origin to 0,0,0 for registration later
-             cmd = TChangeOrigin.substitute(file=eval(sMRI+'_nrrd').replace('.nrrd','_N4corrected.nrrd'))
-             log = log + cmd + '\n\n'
-             print cmd
-             os.system(cmd)
+                #change the origin to 0,0,0 for registration later
+                cmd = TChangeOrigin.substitute(file=eval(sMRI+'_nrrd').replace('.nrrd','_N4corrected.nrrd'))
+                log = log + cmd + '\n\n'
+                print cmd
+                os.system(cmd)
 
        ################################
        # 2. Rigid Registration
@@ -271,11 +278,11 @@ for prefix in prefixlist:
                 print ImageMathCmd
                 os.system(ImageMathCmd)
 
-       #clean up
-       rmcmd = 'rm '+ os.path.join(TISSUE_SEG_DIR,'*posterior*')
-       log = log + rmcmd + '\n\n'
-       print rmcmd
-       os.system(rmcmd)
+          #clean up
+          rmcmd = 'rm '+ os.path.join(TISSUE_SEG_DIR,'*posterior*')
+          log = log + rmcmd + '\n\n'
+          print rmcmd
+          os.system(rmcmd)
 
        #####################################################################
        #######################4. Intensity Calibration
@@ -318,19 +325,106 @@ OutputSuffix=-irescaled
 # OutputDir=%s
 
 # Intensity rescaler script end'''%(rigidatlas,atlasEMS,T1_ABC,sourceEMSimg,T2_ABC,sourceEMSimg,TISSUE_SEG_DIR)
-                
+       
        IntensityCal_file = os.path.join(TISSUE_SEG_DIR,'IntensityRescalar.txt')
        f = open(IntensityCal_file,'w')
        f.write(IntensityCal_info)
        f.close()
        cmd = 'IntensityRescaler  -input '+IntensityCal_file +' -v'
        log = log + cmd + '\n\n'
-       print cmd
-       os.system(cmd)
+       if(os.path.exists(T1_ABC.replace('.nrrd','-irescaled.nrrd')) == False or os.path.exists(T2_ABC.replace('.nrrd','-irescaled.nrrd')) == False):
+          print cmd
+          os.system(cmd)
+
+       
+       #4. Calculate the volumes of segmented ares after ABC
+       ABC_label = os.path.join(TISSUE_SEG_DIR,fnmatch.filter(os.listdir(TISSUE_SEG_DIR),'*labels_ABC.nrrd')[0])
+       ABC_vol = ABC_label.replace('.nrrd','_vol.txt')
+       cmd = ImageStatCmd + ' ' + ABC_label +' -histo'
+       log = log + cmd + '\n\n'
+       if (os.path.exists(ABC_vol) == False):
+          print 'Computing ABC volumes'
+          print cmd
+          os.system(cmd)
+       print prefix
+       ind_volstats = fnmatch.filter(open(ABC_vol,'r').readlines(),'*volumes =*')[0]
+       VOLSTATS = VOLSTATS+'\n'+ind_volstats.replace('volumes = ','').replace('{','').replace('},','').replace('}','').replace(';\n','').replace('0,',prefix+'\t').replace('1,','\t').replace('2,','\t').replace('3,','\t')
+
+       #5. Doing warping
+       #Doing warping subcortical structures
+
+set allcases = $ORIG_DATA_DIR/${SUBJ_DIR_PREFIX}???/sMRI/WarpROI/*_warp.hfield.gz
+set numcases = $#allcases
+set randnum  = `randperm 1 $numcases`
+foreach index ($randnum)          
+    set case = $allcases[$index] 
+    set caseID = $case:h:h:h:t
+
+    set targetDir = $case:h:h/WarpSubCort
+    if (! -e $targetDir) mkdir $targetDir
+
+    set source = $atlasSubCortFile
+    set targetAff = $targetDir/$caseID:t_AffSubCort.gipl.gz
+    set targetWarp = $targetDir/$caseID:t_AffWarpSubCort.gipl.gz
+    set dofAreg = $case:h/template_areg_$caseID.dof
+
+    if (! -e $targetWarp || ! -e $targetAff) then
+	echo warping subcortical segementation $targetWarp
+        set targetWarp = $targetWarp:r
+        set targetAff = $targetAff:r
+
+	gunzip -c $case >! $case:r
+	set case = $case:r
+
+	# nearest neighbor interpolation warping
+	$transformCmd $source $targetAff -dofin $dofAreg
+        $warpCmd -a $targetAff $case $targetWarp -nearest
+
+	gzip -f $targetWarp $targetAff 
+	rm $case 
+    endif
+end
+
+
+# compute  volumes 
+set allcases = $ORIG_DATA_DIR/${SUBJ_DIR_PREFIX}???/sMRI/WarpSubCort/*WarpSubCort.gipl.gz
+set numcases = $#allcases
+set randnum  = `randperm 1 $numcases`
+foreach index ($randnum)          
+    set case = $allcases[$index] 
+    set caseID = $case:h:h:h:t
+
+    set target = $case:r:r_vol.txt
+    if (! -e $target ) then
+	echo computing subcortical structure volume $target
+	ImageStat $case -histo
+    endif
+end
+
+set areaFile = $curpath/SubCort_vol.txt
+if (-e $areaFile) rm $areaFile
+echo ID_number >! $areaFile
+cat $atlasSubCortHeaderFile >> $areaFile
+text_subst.pl 'ID_number\n' 'ID_number '  $areaFile >> /dev/null
+foreach histoFile ($ORIG_DATA_DIR/${SUBJ_DIR_PREFIX}???/sMRI/WarpSubCort/*WarpSubCort_vol.txt )
+    echo $histoFile:t:s/_prob//:s/_vol.txt// >> $areaFile 
+    grep volumes $histoFile >> $areaFile
+end
+remove_Commas_Brackets $areaFile >> /dev/null
+text_subst.pl '\nvolumes = 0 ' ' '  $areaFile >> /dev/null
+text_subst.pl '_AffWarpSubCort' ' '  $areaFile >> /dev/null
+text_subst.pl ';' ''  $areaFile >> /dev/null
+foreach i ( 1 2 3 4 5 6 7 8 9 10 )
+   text_subst.pl " $i " " "  $areaFile >> /dev/null
+end
 
        #write log file of all the commands
        f = open(log_file,'w')
        f.write(log)
+
+       
+f = open(ABCVOL,'w')
+f.write(VOLSTATS)
          
 
 

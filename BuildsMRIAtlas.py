@@ -142,56 +142,54 @@ for dir_tag in sys.argv[3:]:
             if os.path.exists(curr_loc): 
                 SSDir = os.path.join(curr_loc,'sMRI','BM_EMS_SkullStripped');
 	        #name of stripped T1s
-                T1_EMS = os.path.join(SSDir,prefix+'_'+dir_tag+'_T1_050505mm_EMSStripped_Reg2T2.gipl.gz');
+                T1_ABC = os.path.join(SSDir,prefix+'_'+dir_tag+'_T1_050505mm_EMSStripped_Reg2T2.gipl.gz');
                 if(os.path.exists(T1_EMS)==False):
                     T1_EMS = os.path.join(SSDir,prefix+'_'+dir_tag+'_T1_050505mm_EMSStripped_Reg205.gipl.gz');
                 #name  stripped T2s
-                T2_EMS = os.path.join(SSDir,prefix+'_'+dir_tag+'_T2_050510mm_EMSStripped_Reg2T2_RregT105.gipl.gz');
-                if(os.path.exists(T2_EMS)==False):
-                    T2_EMS = os.path.join(SSDir,prefix+'_'+dir_tag+'_T2_050510mm_EMSStripped_Reg205_RregT105.gipl.gz');
+                T2_ABC = os.path.join(SSDir,prefix+'_'+dir_tag+'_T2_050510mm_EMSStripped_Reg2T2_RregT105.gipl.gz');
                
                 if (template_mode.lower() == 'template' and tar == 1):
-                    areg_tar_prefix = 'template';
+                    areg_tar_prefix = 'template'
                     print 'Using the pre-built Atlas as Affine registration template'
                     # areg to the template
-                    areg_tar_T1 = os.path.join(OLD_COEMONKEY_TEMPLATE_DIR,template_name.substitute(sMRI='T1'));
-                    areg_tar_T2 = os.path.join(OLD_COEMONKEY_TEMPLATE_DIR,template_name.substitute(sMRI='T1'));
+                    areg_tar_T1 = os.path.join(OLD_COEMONKEY_TEMPLATE_DIR,template_name.substitute(sMRI='T1'))
+                    areg_tar_T2 = os.path.join(OLD_COEMONKEY_TEMPLATE_DIR,template_name.substitute(sMRI='T1'))
                     # histmatched to one of the picked
-                    histmatch_tar_T1 = T1_EMS;
-                    histmatch_tar_T2 = T2_EMS;
-                    histmatch_tar_prefix = prefix;
-                    tar = 0;
+                    histmatch_tar_T1 = T1_EMS
+                    histmatch_tar_T2 = T2_EMS
+                    histmatch_tar_prefix = prefix
+                    tar = 0
                 elif (tar == 1):
                     #pick the first one and affinely transform everyone to this one as initial
-                    areg_tar_prefix = prefix;
-                    histmatch_tar_prefix = prefix;
-                    histmatch_tar_T1 = T1_EMS;
-                    histmatch_tar_T2 = T2_EMS;
-                    areg_tar_T1 = T1_EMS;
-                    areg_tar_T2 = T2_EMS;
-                    tar = 0;
+                    areg_tar_prefix = prefix
+                    histmatch_tar_prefix = prefix
+                    histmatch_tar_T1 = T1_EMS
+                    histmatch_tar_T2 = T2_EMS
+                    areg_tar_T1 = T1_EMS
+                    areg_tar_T2 = T2_EMS
+                    tar = 0
                     
-                areg_dir = os.path.join(areg_dir_parent,'Areg2'+areg_tar_prefix);
+                areg_dir = os.path.join(areg_dir_parent,'Areg2'+areg_tar_prefix)
                 if(os.path.exists(areg_dir)==False): os.mkdir(areg_dir)
-                histmatch_dir = os.path.join(histmatch_dir_parent,'Histmatched2'+histmatch_tar_prefix);
+                histmatch_dir = os.path.join(histmatch_dir_parent,'Histmatched2'+histmatch_tar_prefix)
                 if(os.path.exists(histmatch_dir)==False): os.mkdir(histmatch_dir)
 
                 if(tar == 0):
-                    sMRI_histmatched = eval(sMRI+'_EMS').replace('.gipl.gz','_Histmatched2'+histmatch_tar_prefix+'.gipl.gz').replace(SSDir,histmatch_dir);
-                    sMRI_affine = eval(sMRI+'_EMS').replace('.gipl.gz','_IniAffine2'+areg_tar_prefix+'.gipl.gz').replace(SSDir,areg_dir);
+                    sMRI_histmatched = eval(sMRI+'_EMS').replace('.gipl.gz','_Histmatched2'+histmatch_tar_prefix+'.gipl.gz').replace(SSDir,histmatch_dir)
+                    sMRI_affine = eval(sMRI+'_EMS').replace('.gipl.gz','_IniAffine2'+areg_tar_prefix+'.gipl.gz').replace(SSDir,areg_dir)
                     
 		    # Do affine transformation
                     dof = sMRI_affine.replace('.gipl.gz','.dof')
                     txt = sMRI_affine.replace('.gipl.gz','.txt')
                     if (os.path.exists(sMRI_histmatched) == False):
                         print 'Histogram Matching of '+eval(sMRI+'_EMS')+' to '+eval('histmatch_tar_'+sMRI)
-                        histmatchCmd = ThistmatchCmd.substitute(sou=eval(sMRI+'_EMS'),tar=eval('histmatch_tar_'+sMRI),out=sMRI_histmatched);
+                        histmatchCmd = ThistmatchCmd.substitute(sou=eval(sMRI+'_EMS'),tar=eval('histmatch_tar_'+sMRI),out=sMRI_histmatched)
                         os.system(histmatchCmd)
                     else:
                         print 'Histogram Matching of '+eval(sMRI+'_EMS')+' to '+eval('histmatch_tar_'+sMRI) + ' already done'
                     if (os.path.exists(dof) == False):
                         print 'Affinely transform '+sMRI_histmatched+' to '+eval('areg_tar_'+sMRI)
-                        AregCmd = TaregCmd.substitute(tar=eval('areg_tar_'+sMRI),sou=sMRI_histmatched)+' -dofout '+dof+' -parin '+parfile+' -Tp 5 -p9';
+                        AregCmd = TaregCmd.substitute(tar=eval('areg_tar_'+sMRI),sou=sMRI_histmatched)+' -dofout '+dof+' -parin '+parfile+' -Tp 5 -p9'
                         os.system(AregCmd)
                         transformCmd = TtransformCmd.substitute(sou=eval(sMRI+'_EMS'),out=sMRI_affine,dofin = dof)+' -cspline'
                         os.system(transformCmd)
@@ -210,8 +208,8 @@ for dir_tag in sys.argv[3:]:
                     # affine initial reg included in atlaswerks
                     print template_name
                     # append the list
-                    txtlist = txtlist + txt +' ';
-                    sMRIlist = sMRIlist + sMRI_histmatched + ' ';
+                    txtlist = txtlist + txt +' '
+                    sMRIlist = sMRIlist + sMRI_histmatched + ' '
                         
         print sMRIlist
 	AtlasWerksCmd = 'AtlasWerks' + sMRIlist + '--outputImageFilenamePrefix='+outAvg+sMRI+'_\
@@ -219,7 +217,7 @@ for dir_tag in sys.argv[3:]:
  --outputHFieldFilenamePrefix='+HField+sMRI+'_\
  --outputHInvFieldFilenamePrefix='+InvHField+sMRI+'_'
 	for slevel in [4, 2, 1]:
-	    index = 2-int(math.log(slevel,2));
+	    index = 2-int(math.log(slevel,2))
 	    AtlasWerksCmd = AtlasWerksCmd + '\
  --scaleLevel='+str(slevel)+' --numberOfIterations='+str(numiter[index])+'\
  --alpha='+str(alpha[index])+'\
@@ -235,46 +233,46 @@ for dir_tag in sys.argv[3:]:
 ## 	    AtlasWerksCmd = AtlasWerksCmd + '\
 ##  --intensityWindowMin='+str(T2win[0])+'\
 ##  --intensityWindowMax='+str(T2win[1])
-        AtlasWerksCmd = AtlasWerksCmd +' '+txtlist;
+        AtlasWerksCmd = AtlasWerksCmd +' '+txtlist
         
 	print AtlasWerksCmd.replace(' ','\n')+'\n'+'\n'
- 	f.write(AtlasWerksCmd.replace(' ','\n')+'\n'+'\n');
+ 	f.write(AtlasWerksCmd.replace(' ','\n')+'\n'+'\n')
 	AtlasWerkslog = os.path.join(atlas_dir,'sMRIAtlas_'+dir_tag+'_'+sMRI+'.log')
 	os.system(AtlasWerksCmd+' 2>&1 |tee '+AtlasWerkslog)
-        f.close();
+        f.close()
         #adjust the intensiy level for the deformed images -- debug purpose
         for im in fnmatch.filter(os.listdir(deformed_dir),'*'+sMRI+'*_2*.mhd'):
-            image = os.path.join(deformed_dir,im);
+            image = os.path.join(deformed_dir,im)
             adimg = image.replace('.mhd','_scaled.nrrd')
             os.system('ImageMath '+image+' -constOper 2,255 -outfile '+adimg)
             cmd = TunugzipCmd.substitute(file=adimg)
             print cmd
-            os.system(cmd);
+            os.system(cmd)
         #adjust the intensity level to get the final atlas
         for im in fnmatch.filter(os.listdir(avg_dir),'*'+sMRI+'*_2*.mhd'):
-            image = os.path.join(avg_dir,im);
+            image = os.path.join(avg_dir,im)
             sMRIAtlas = os.path.join(atlas_dir,sMRI+'_'+dir_tag+'_Atlas.nrrd')
             os.system('ImageMath '+image+' -constOper 2,255 -outfile '+adimg)
             cmd = TunugzipCmd.substitute(file=adimg)
             print cmd
-            os.system(cmd);
+            os.system(cmd)
         
         # propogate the parcellation
         # using b-spline registration to transform the old atlas to T1
         # store all the transformation in the processing folder
-        processing_dir = os.path.join(atlas_dir,'parc_areg');
-        if(os.path.exists(processing_dir)==False): os.system('mkdir '+processing_dir);
-        dof = atlas.replace(atlas_dir,processing_dir).replace('.nrrd','_transformation.dof');
+        processing_dir = os.path.join(atlas_dir,'parc_areg')
+        if(os.path.exists(processing_dir)==False): os.system('mkdir '+processing_dir)
+        dof = atlas.replace(atlas_dir,processing_dir).replace('.nrrd','_transformation.dof')
 
         if (os.path.exists(dof) == False):
-            parfile = parfile_NMI_Bspline;
+            parfile = parfile_NMI_Bspline
             if (fnmatch.fnmatch(atlas,'*T1*')):
                 # use CC for t1 to t1 registration
                 parfile = parfile_CC_Bspline
-                rregCmd = TrregCmd.substitute(tar=grid_template,sou=template_atlas)+' -dofout '+dof+' -parin '+parfile+' -Tp 5';
-                os.system(rregCmd);
-                aregCmd = TaregCmd.substitute(tar=grid_template,sou=template_atlas)+' -dofin '+dof+' -dofout '+dof+' -parin '+ parfile+' -Tp 5 -p9';
-                os.system(aregCmd);
+                rregCmd = TrregCmd.substitute(tar=grid_template,sou=template_atlas)+' -dofout '+dof+' -parin '+parfile+' -Tp 5'
+                os.system(rregCmd)
+                aregCmd = TaregCmd.substitute(tar=grid_template,sou=template_atlas)+' -dofin '+dof+' -dofout '+dof+' -parin '+ parfile+' -Tp 5 -p9'
+                os.system(aregCmd)
 
         # apply this transformation to the parcelletion
         # construct grid template
@@ -282,15 +280,15 @@ for dir_tag in sys.argv[3:]:
         # -------------IMPORTANT------------
         # the label files should NOT be interpolated linearly
         # Using nearest neighbour
-        parc = atlas.replace('.nrrd','_parc.gipl.gz');
-        transformCmd = TtransformCmd.substitute(sou=template_parc,out=parc,dofin = dof)+' -target '+grid_template;
+        parc = atlas.replace('.nrrd','_parc.gipl.gz')
+        transformCmd = TtransformCmd.substitute(sou=template_parc,out=parc,dofin = dof)+' -target '+grid_template
         if(os.path.exists(parc)==False):
             print transformCmd
             os.system(transformCmd)
 
-        parc_vent = atlas.replace('.nrrd','_parc_vent.gipl.gz');
+        parc_vent = atlas.replace('.nrrd','_parc_vent.gipl.gz')
         if(os.path.exists(parc_vent)==False):
-            transformCmd = TtransformCmd.substitute(sou=template_parc_vent,out=parc_vent,dofin = dof)+' -target '+grid_template;
+            transformCmd = TtransformCmd.substitute(sou=template_parc_vent,out=parc_vent,dofin = dof)+' -target '+grid_template
             print transformCmd
             os.system(transformCmd)
         os.remove(grid_template)
@@ -298,6 +296,6 @@ for dir_tag in sys.argv[3:]:
 #         for parc in ['template','white','gray','csf','rest']:
 #             if (os.path.exists(os.path.join(atlas_dir,parc+'.gipl'))==False):
 #                 print 'Transforming'+parc+'.gipl'
-#                 transformCmd = TtransformCmd.substitute(sou = atlasFile.replace('template',parc), out = newTemplate.replace('template',parc), dofin = dof) + ' -target ' + T1_RAI_gipl + ' -cspline';
+#                 transformCmd = TtransformCmd.substitute(sou = atlasFile.replace('template',parc), out = newTemplate.replace('template',parc), dofin = dof) + ' -target ' + T1_RAI_gipl + ' -cspline'
 #                 os.system(transformCmd)
 

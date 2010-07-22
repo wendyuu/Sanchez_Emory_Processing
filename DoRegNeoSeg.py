@@ -31,11 +31,11 @@ parser.add_option("-o", "--oldatlas", dest="oldatlas",default=False,action="stor
 #read in the subjects that need to be handled
 if options.filename:
    print 'Reading input from file '+options.filename
-   prefixfile = os.path.join(ORIG_PROCESSING_DIR,options.filename);
-   prefixlist = open(prefixfile,'r');
+   prefixfile = os.path.join(ORIG_PROCESSING_DIR,options.filename)
+   prefixlist = open(prefixfile,'r')
 elif len(args) > 0:
    print 'Reading input from the terminal'
-   prefixlist = args;
+   prefixlist = args
    print args
 else:
    print ('Input error: Either give a file name to read the prefix names of the subjects or type in from the terminal')
@@ -50,6 +50,7 @@ from string import Template
 SlicerLoc = '/tools/Slicer3/Slicer3-3.6-2010-06-10-linux-x86_64/'
 TatlasLoc = Template('/primate/SanchezEmory/BrainDevYerkes/sMRIatlas/${age}/T2/Areg2template/all_subjects/sAtlas') #new atlas built with Emory data
 atlasLoc = ('/tools/atlas/BrainROIAtlas/rhesusMonkeyT1_RAI/ABC_stripped/') #old atlas from CoeMonkey data
+rigidatlas = '/tools/atlas/BrainROIAtlas/rhesusMonkeyT1_RAI/template.gipl'
 
 #BRAINS registration
 BRAINSFitCmd = Template(os.path.join(SlicerLoc,'lib/Slicer3/Plugins/BRAINSFit --movingVolume $sou --fixedVolume $tar --outputTransform $trans'))
@@ -62,6 +63,7 @@ TImageMathCmd = Template('/tools/bin_linux64/ImageMath $infile -outfile $outfile
 TbiascorrectCmd = Template(os.path.join(SlicerLoc,'lib/Slicer3/Plugins/N4ITKBiasFieldCorrection --inputimage $infile --outputimage $outfile'))
 TunugzipCmd = Template(os.path.join(SlicerLoc,'bin/unu')+' save -f nrrd -e gzip -i $infile -o $outfile')
 TunuClampCmd = Template(os.path.join(SlicerLoc,'bin/unu')+' 3op clamp $min  $infile $max -o $outfile')
+TChangeOrigin = Template(os.path.join(ORIG_PROCESSING_DIR,'ChangeOrigin.py $file $file'))
 
 #neoseg
 NEOSEGCmd = '/tools/bin_linux64/neoseg_1.7'
@@ -78,6 +80,7 @@ for prefix in prefixlist:
        pass
     atlasFile = os.path.join(atlasLoc,'templateT2.gipl.gz')
     #For each subject
+    
     if os.path.exists(SUBJ_DIR):
        sMRI_DIR = os.path.join(SUBJ_DIR,'sMRI')
        TISSUE_SEG_DIR = os.path.join(sMRI_DIR,'Tissue_Seg_NEOSEG')
@@ -88,60 +91,78 @@ for prefix in prefixlist:
        log_file = os.path.join(sMRI_DIR,'log_NEOSEG.txt')
        log = ''
        # generate first step nrrd files
-       # for old files that only has 050505mm but not 060606mm
-       T1_nrrd = os.path.join(sMRI_DIR,prefix+'_'+age+'_T1_050505mm.nrrd')
+       T1_05_nrrd = os.path.join(sMRI_DIR,prefix+'_'+age+'_T1_050505mm.nrrd')
+       T1_06_nrrd = os.path.join(sMRI_DIR,prefix+'_'+age+'_T1_060606mm.nrrd')
        T2_nrrd = os.path.join(sMRI_DIR,prefix+'_'+age+'_T2_050510mm.nrrd')
-       for sMRI in ['T1','T2']:
-          sMRI_nrrd = eval(sMRI+'_nrrd')
-          sMRI_nhdr = sMRI_nrrd.replace('.nrrd','.nhdr')
-          sMRI_raw = sMRI_nrrd.replace('.nrrd','.raw')
-          sMRI_rawgz = sMRI_nrrd.replace('.nrrd','.raw.gz')
-          sMRI_temp = os.path.join(sMRI_DIR,prefix+'_'+age+'_'+sMRI+'.nrrd')
-          if (os.path.exists(sMRI_nrrd)==False):
-             if(os.path.exists(sMRI_nhdr)==True):
-                unugzipCmd = TunugzipCmd.substitute(infile=sMRI_nhdr,outfile=sMRI_nrrd)
-                print unugzipCmd
-                os.system(unugzipCmd)
-             elif(os.path.exists(sMRI_temp)==True):
-                unugzipCmd = TunugzipCmd.substitute(infile=sMRI_temp,outfile=sMRI_nrrd)
-                print unugzipCmd
-                os.system(unugzipCmd)
-             else:
-                sys.exit("where is the "+sMRI)      
-          #clean-up
-          if(os.path.exists(sMRI_temp)): os.remove(sMRI_temp)
-          if(os.path.exists(sMRI_nhdr)): os.remove(sMRI_nhdr)
-          if(os.path.exists(sMRI_raw)): os.remove(sMRI_raw)
-          if(os.path.exists(sMRI_rawgz)): os.remove(sMRI_rawgz)
 
+       for sMRI in ['T1_05','T1_06','T2']:
+          sMRI_nrrd = eval(sMRI+'_nrrd')
+          if(os.path.exists(sMRI_nrrd)):
+             sMRI_nrrd = eval(sMRI+'_nrrd')
+             unugzipCmd = TunugzipCmd.substitute(infile=sMRI_nrrd,outfile=sMRI_nrrd)
+             print unugzipCmd
+             os.system(unugzipCmd)
+       #######################################
+       # 1. Bias field correction using N4
+       ######################################
+       #Apply the N4 correction
+       for sMRI in ['T1_05','T1_06','T2']:
+          if(os.path.exists(eval(sMRI+'_nrrd'))):
+             biascorrectCmd = TbiascorrectCmd.substitute(infile=eval(sMRI+'_nrrd'),outfile=eval(sMRI+'_nrrd').replace('.nrrd','_N4corrected.nrrd'))
+             log = log + biascorrectCmd + '\n\n'
+             if (os.path.exists(eval(sMRI+'_nrrd').replace('.nrrd','_N4corrected.nrrd'))==False):
+                print biascorrectCmd
+                os.system(biascorrectCmd)
+             #change the origin to 0,0,0 for registration later
+             cmd = TChangeOrigin.substitute(file=eval(sMRI+'_nrrd').replace('.nrrd','_N4corrected.nrrd'))
+             log = log + cmd + '\n\n'
+             print cmd
+             os.system(cmd)
+
+        ################################
+       # 2. Rigid Registration
+       ################################
        #T1 and T2 already in RAI space
+       # for old files that only has 050505mm but not 060606mm
+       # Use 06 T1
+       if (os.path.exists(T1_06_nrrd) == True):
+          T1_nrrd = T1_06_nrrd
+       else:
+          T1_nrrd = T1_05_nrrd
        T1_N4 = T1_nrrd.replace('.nrrd','_N4corrected.nrrd')
        T2_N4 = T2_nrrd.replace('.nrrd','_N4corrected.nrrd')
-                                                                       
-       # Bias field correction
-       #2) Apply the N4 correction
-       for sMRI in ['T1','T2']:
-          biascorrectCmd = TbiascorrectCmd.substitute(infile=eval(sMRI+'_nrrd'),outfile=eval(sMRI+'_N4'))
-          log = log + biascorrectCmd + '\n\n'
-          if (os.path.exists(eval(sMRI+'_N4'))==False):
-             print biascorrectCmd
-             os.system(biascorrectCmd)
-       
-       # Register T2 to T1
-       T2RregT1  = T2_N4.replace('.nrrd','_RregT1.nrrd')
-       TransRreg = T2RregT1.replace('.nrrd','_trans.txt')
-       
-       BFitCmd = BRAINSFitCmd.substitute(tar = T1_N4, sou = T2_N4, trans = TransRreg) + ' --useRigid --interpolationMode BSpline --outputVolume ' + T2RregT1
+       Rreg2atlas_DIR = os.path.join(sMRI_DIR,'Rreg2Atlas')
+       if(os.path.exists(Rreg2atlas_DIR)==False): os.mkdir(Rreg2atlas_DIR)
+
+       T1RregAtlas = T1_N4.replace('.nrrd','_Rreg2Atlas.nrrd').replace(sMRI_DIR,Rreg2atlas_DIR)
+       T2RregT1  = T2_N4.replace('.nrrd','_Rreg2T1Atlas.nrrd').replace(sMRI_DIR,Rreg2atlas_DIR)
+       T1TransRreg = T1RregAtlas.replace('.nrrd','_trans.txt')
+       T2TransRreg = T2RregT1.replace('.nrrd','_trans.txt')
+
+       #register T1 to atlas
+       BFitCmd = BRAINSFitCmd.substitute(tar = rigidatlas, sou = T1_N4, trans = T1TransRreg) + ' --transformType Rigid --interpolationMode BSpline --useCenterOfHeadAlign --outputVolumePixelType short --outputVolume ' + T1RregAtlas
        log = log + BFitCmd + '\n\n'
-       if (os.path.exists(TransRreg) == False):
+       clampCmd = TunuClampCmd.substitute(infile = T1RregAtlas, outfile = T1RregAtlas, min = 0, max = 1000000)
+       log = log + clampCmd + '\n\n'
+       if (os.path.exists(T1TransRreg) == False):
           print BFitCmd
           os.system(BFitCmd)
-       #Get rid of the negative parts
+          #Get rid of the negative parts
+          print clampCmd
+          os.system(clampCmd)
+
+       #register T2 to atlas-registered T1
+       BFitCmd = BRAINSFitCmd.substitute(tar = T1RregAtlas, sou = T2_N4, trans = T2TransRreg) + ' --transformType Rigid --interpolationMode BSpline --outputVolumePixelType short --outputVolume ' + T2RregT1
+       log = log + BFitCmd + '\n\n'
        clampCmd = TunuClampCmd.substitute(infile = T2RregT1, outfile = T2RregT1, min = 0, max = 1000000)
        log = log + clampCmd + '\n\n'
-       print clampCmd
-       os.system(clampCmd)
-       
+       if (os.path.exists(T2TransRreg) == False):
+          print BFitCmd
+          os.system(BFitCmd)
+          #Get rid of the negative parts
+          print clampCmd
+          os.system(clampCmd)
+
        regtar = 'T2RregT1'
        SUFFIX = 'NEOSEG'
        NEOSEGreg = 0
@@ -150,8 +171,8 @@ for prefix in prefixlist:
          # trick to disable warping in NEOSEG
          # cp the transformation file with identity trans to the tmp folder
 
-         NEOSEGT1warp_tar = NEOSEGT1warp_orig.replace(ORIG_PROCESSING_DIR,TISSUE_SEG_DIR).replace('T1name',prefix+'_'+age+'_T2_050510mm_N4corrected_RregT1').replace('EMSinfo',SUFFIX).replace('template','templateT2')
-         NEOSEGT2warp_tar = NEOSEGT2warp_orig.replace(ORIG_PROCESSING_DIR,TISSUE_SEG_DIR).replace('T1name',prefix+'_'+age+  '_T2_050510mm_N4corrected_RregT1').replace('T2name',prefix+'_'+age+  '_T1_050505mm_N4corrected').replace('EMSinfo',SUFFIX)
+         NEOSEGT1warp_tar = NEOSEGT1warp_orig.replace(ORIG_PROCESSING_DIR,TISSUE_SEG_DIR).replace('T1name',prefix+'_'+age+'_T2_050510mm_N4corrected_Rreg2T1Atlas').replace('EMSinfo',SUFFIX).replace('template','templateT2')
+         NEOSEGT2warp_tar = NEOSEGT2warp_orig.replace(ORIG_PROCESSING_DIR,TISSUE_SEG_DIR).replace('T1name',prefix+'_'+age+  '_T2_050510mm_N4corrected_Rreg2T1Atlas').replace('T2name',prefix+'_'+age+  '_T1_050505mm_N4corrected_Rreg2Atlas').replace('EMSinfo',SUFFIX)
          os.system('cp '+ NEOSEGT1warp_orig + ' ' + NEOSEGT1warp_tar)
          os.system('cp '+ NEOSEGT2warp_orig + ' ' + NEOSEGT2warp_tar)
 
@@ -195,7 +216,7 @@ for prefix in prefixlist:
               os.system(ImageMathCmd)
               os.system('gunzip '+ os.path.join(TISSUE_SEG_DIR,image))
               
-         ImageMathCmd = TImageMathCmd.substitute(infile = T1_N4, outfile = T1_N4) + ' -editPixdims 1.0,1.0,1.0'
+         ImageMathCmd = TImageMathCmd.substitute(infile = T1RregAtlas , outfile = T1RregAtlas) + ' -editPixdims 1.0,1.0,1.0'
          log = log + ImageMathCmd + '\n\n'
          os.system(ImageMathCmd)
          
@@ -218,13 +239,13 @@ for prefix in prefixlist:
   <ORIENTATION>RAI</ORIENTATION>\n\
 </IMAGE>\n\
 <IMAGE>\n\
-  <FILE>'+T1_N4+'</FILE>\n\
+  <FILE>'+T1RregAtlas+'</FILE>\n\
   <ORIENTATION>RAI</ORIENTATION>\n\
 </IMAGE>\n\
 <FILTER-ITERATIONS>10</FILTER-ITERATIONS>\n\
 <FILTER-TIME-STEP>0.01</FILTER-TIME-STEP>\n\
 <FILTER-METHOD>Curvature flow</FILTER-METHOD>\n\
-<MAX-BIAS-DEGREE>1</MAX-BIAS-DEGREE>\n\
+<MAX-BIAS-DEGREE>0</MAX-BIAS-DEGREE>\n\
 <PRIOR-1>0.2</PRIOR-1>\n\
 <PRIOR-2>1.4</PRIOR-2>\n\
 <PRIOR-3>1</PRIOR-3>\n\
@@ -263,7 +284,7 @@ for prefix in prefixlist:
                  cmd = TunugzipCmd.substitute(infile=os.path.join(TISSUE_SEG_DIR,image),outfile = os.path.join(TISSUE_SEG_DIR,image))
                  log = log + cmd + '\n\n'
                  os.system(cmd)
-              ImageMathCmd = TImageMathCmd.substitute(infile = T1_N4, outfile = T1_N4) + ' -editPixdims '+origPixdims[1]+','+origPixdims[2]+','+origPixdims[3].replace('\n','')
+              ImageMathCmd = TImageMathCmd.substitute(infile = T1RregAtlas, outfile = T1RregAtlas) + ' -editPixdims '+origPixdims[1]+','+origPixdims[2]+','+origPixdims[3].replace('\n','')
               log = log + ImageMathCmd + '\n\n'
               os.system(ImageMathCmd)
               ImageMathCmd = TImageMathCmd.substitute(infile = T2RregT1, outfile = T2RregT1) + ' -editPixdims '+origPixdims[1]+','+origPixdims[2]+','+origPixdims[3].replace('\n','')
