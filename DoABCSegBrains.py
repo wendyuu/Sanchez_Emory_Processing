@@ -89,6 +89,15 @@ VOLSTATS = 'CASE\tBACKGROUND\tWM\tGM\tCSF'
 ############################4. INTENSITY RESCALING################################################
 ############################5. CALCULATE THE VOLUMES OF EMS SEGMENTED AREAS
 
+
+###############################################################
+##########################PIPELINE#############################
+########1. N4 CORRECTION
+########2. RIGID REGISTRATION (T1 to Atlas, T2 to T1)
+########3. ABC
+########4. SKULL STRIPPING
+########5. INTENSITY CALIBRATION
+
 # loop through the folders to calculate tensor
 for prefix in prefixlist:
     prefix = prefix[0:5]
@@ -103,7 +112,9 @@ for prefix in prefixlist:
        pass
     
     #For each subject
+    
     if os.path.exists(SUBJ_DIR):
+       print prefix
        sMRI_DIR = os.path.join(SUBJ_DIR,'sMRI')
        TISSUE_SEG_DIR = os.path.join(sMRI_DIR,'Tissue_Seg_ABC')
        if(os.path.exists(TISSUE_SEG_DIR)==False):
@@ -153,6 +164,7 @@ for prefix in prefixlist:
           T1_nrrd = T1_05_nrrd
        T1_N4 = T1_nrrd.replace('.nrrd','_N4corrected.nrrd')
        T2_N4 = T2_nrrd.replace('.nrrd','_N4corrected.nrrd')
+<<<<<<< HEAD:DoABCSegBrains.py
        Rreg2atlas_DIR = os.path.join(sMRI_DIR,'Rreg2Atlas')
        if(os.path.exists(Rreg2atlas_DIR)==False): os.mkdir(Rreg2atlas_DIR)
 
@@ -163,6 +175,23 @@ for prefix in prefixlist:
 
        #register T1 to atlas
        BFitCmd = BRAINSFitCmd.substitute(tar = rigidatlas, sou = T1_N4, trans = T1TransRreg) + ' --transformType Rigid --useCenterOfHeadAlign --outputVolumePixelType short'
+=======
+                                                                       
+       # Bias field correction
+       #2) Apply the N4 correction
+       for sMRI in ['T1','T2']:
+          biascorrectCmd = TbiascorrectCmd.substitute(infile=eval(sMRI+'_nrrd'),outfile=eval(sMRI+'_N4'))
+          log = log + biascorrectCmd + '\n\n'
+          if (os.path.exists(eval(sMRI+'_N4'))==False):
+             print biascorrectCmd
+             os.system(biascorrectCmd)
+       
+       # Register T2 to T1
+       T2RregT1  = T2_N4.replace('.nrrd','_RregT1.nrrd')
+       TransRreg = T2RregT1.replace('.nrrd','_trans.txt')
+       
+       BFitCmd = BRAINSFitCmd.substitute(tar = T1_N4, sou = T2_N4, trans = TransRreg) + ' --transformType Rigid --useCenterOfHeadAlign --interpolationMode BSpline ----outputVolume ' + T2RregT1
+>>>>>>> 453825757c0cb34fea37c5e5899583fe84edc35e:DoABCSegBrains.py
        log = log + BFitCmd + '\n\n'
        ResampleCmd = TResampleCmd.substitute(sou =T1_N4, out = T1RregAtlas, ref = rigidatlas,trans=T1TransRreg)+' -t rt'
        log = log + ResampleCmd + '\n\n'

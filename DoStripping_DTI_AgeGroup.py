@@ -65,15 +65,24 @@ TwarpCmd = Template('/tools/bin_linux64/fWarp')
 TImageMathCmd = Template('/tools/bin_linux64/ImageMath $infile -outfile $outfile')
 ThistmatchCmd = Template('/tools/bin_linux64/ImageMath $sou -matchHistogram $tar -outfile $out')
 TunusaveCmd = Template('/tools/Slicer3/Slicer3-3.6-2010-06-10-linux-x86_64//bin/unu save -f nrrd -i $infile -o $outfile')
+<<<<<<< HEAD:DoStripping_DTI_AgeGroup.py
 TChangeSpaceDir = Template(os.path.join(ORIG_PROCESSING_DIR,'ChangeSpaceDir.py $infile $outfile'))
+=======
+TChangeSpaceDir = Template('/primate/SanchezEmory/BrainDevYerkes/processing/ChangeSpaceDir.py $infile $outfile')
+>>>>>>> 453825757c0cb34fea37c5e5899583fe84edc35e:DoStripping_DTI_AgeGroup.py
 TSegPostProcess = Template('/tools/bin_linux64/SegPostProcess $infile -skullstripping $strippingfile -o $outfile -mask $BM')
 
 #command and dir
 ABCCmd = '/tools/bin_linux64/ABC'
 ATLAS_DIR = '/tools/atlas/BrainROIAtlas/rhesusMonkeyT1_RAI/ABC_stripped/'
 unuhead = '/tools/Slicer3/Slicer3-3.6-2010-06-10-linux-x86_64//bin/unu head '
+<<<<<<< HEAD:DoStripping_DTI_AgeGroup.py
 parfile = os.path.join(ORIG_PROCESSING_DIR,'Reg_par_CC.txt')
 parfile_bsp = os.path.join(ORIG_PROCESSING_DIR,'Reg_par_CC_Bspline.txt')
+=======
+parfile = os.path.join(ORIG_DATA_DIR,'Sanchez_Emory_Processing','Reg_par_CC.txt')
+parfile_bsp = os.path.join(ORIG_DATA_DIR,'Sanchez_Emory_Processing','Reg_par_CC_Bspline.txt')
+>>>>>>> 453825757c0cb34fea37c5e5899583fe84edc35e:DoStripping_DTI_AgeGroup.py
 redo = 1
 tag_template_exist = 0
 
@@ -177,7 +186,10 @@ for line in prefixlist:
 
 		#Using sMRI brain mask to do skull stripping
 		sMRI_SSDir = os.path.join(sMRIDir,'Tissue_Seg_ABC')
+<<<<<<< HEAD:DoStripping_DTI_AgeGroup.py
 		Rreg2atlas_DIR = os.path.join(sMRI_DIR,'Rreg2Atlas')
+=======
+>>>>>>> 453825757c0cb34fea37c5e5899583fe84edc35e:DoStripping_DTI_AgeGroup.py
 		T1 = os.path.join(sMRIDir,prefix + '_' + dir_tag +  '_T1_050505mm_RAI.gipl.gz')
 		T2 = os.path.join(sMRIDir,prefix+'_'+dir_tag+'_T2_050510mm_RAI_N3corrected_RregT1.nhdr')
 		sMRIbrainmask = os.path.join(sMRI_SSDir,'ABC_brainMask.gipl.gz')
